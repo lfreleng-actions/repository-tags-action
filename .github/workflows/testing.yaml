@@ -28,20 +28,15 @@ jobs:
       contents: read
     timeout-minutes: 3 # Increase this timeout value as needed
     steps:
-      - name: "Checkout repository"
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-        with:
-          persist-credentials: false
-
       # Test local action
       - name: "Run action: ${{ github.repository }}"
         id: test-local
-        uses: ./
+        uses: $/
 
       # Test local action
       - name: "Run action: ${{ github.repository }} [test-tags-semver]"
         id: semver
-        uses: ./
+        uses: $/
         with:
           repository: 'lfreleng-actions/test-tags-semantic'
           path: 'test-tags-semantic'
@@ -49,7 +44,7 @@ jobs:
       # Test local action
       - name: "Run action: ${{ github.repository }} [test-tags-calver]"
         id: calver
-        uses: ./
+        uses: $/
         with:
           repository: 'lfreleng-actions/test-tags-calver'
           path: 'test-tags-calver'
