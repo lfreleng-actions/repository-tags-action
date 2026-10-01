@@ -57,13 +57,19 @@ runs:
     - name: 'Fetch repository tags'
       id: 'fetch'
       shell: bash
-      if: startsWith(github.ref, 'refs/tags/') != 'true'
-      # Don't fetch tags if a tag was pushed, it will result in an error, e.g.
+      # Always runs: later steps and the 'tag_count' output depend on it.
+      # A local tag that differs from the remote tag of the same name
+      # makes a plain 'git fetch --tags' fail, e.g. on a tag push where
+      # older actions/checkout releases store the pushed tag as a
+      # lightweight tag, or in a reused workspace with stale tags:
       # Fetching tags...
       # From https://github.com/os-climate/osc-github-devops
       #  * [new branch]      main       -> origin/main
       #  * [new tag]         v0.0.0     -> v0.0.0
       #  ! [rejected]        v0.0.2     -> v0.0.2  (would clobber existing tag)
+      # The script fetches with '--force' so remote tags replace any
+      # conflicting local tags of the same name. Local-only tags are kept,
+      # and 'git tag -l' below still counts them.
       env:
         REPO_PATH: ${{ inputs.path }}
         TYPE: ${{ inputs.type }}
@@ -74,7 +80,7 @@ runs:
         fi
         # Workaround for: https://github.com/actions/checkout/issues/1471
         echo "Fetching tags..."
-        git fetch --tags
+        git fetch --tags --force
 
         # Count tags in repository so subsequent steps can be conditional
         # Apply the same filtering logic based on type parameter

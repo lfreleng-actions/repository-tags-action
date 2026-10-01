@@ -58,3 +58,9 @@ This action does NOT use "fetch-tags: true" in the checkout step.
 See: <https://github.com/actions/checkout/issues/1471>
 
 The action uses the Git CLI to retrieve tags.
+
+It fetches with `git fetch --tags --force`, so remote tags replace any local
+tags of the same name that point elsewhere. Without `--force`, such a conflict
+fails the fetch with `would clobber existing tag`. This can happen on a tag
+push with older `actions/checkout` releases or in a reused workspace. Local
+tags absent from the remote stay in place.

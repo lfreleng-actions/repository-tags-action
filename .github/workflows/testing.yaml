@@ -90,3 +90,80 @@ jobs:
           STEPS_SEMVER_OUTPUTS_TAG_COUNT: ${{ steps.semver.outputs.tag_count }}
           STEPS_CALVER_OUTPUTS_TAG: ${{ steps.calver.outputs.tag }}
           STEPS_CALVER_OUTPUTS_TAG_COUNT: ${{ steps.calver.outputs.tag_count }}
+
+  ### Regression test: conflicting local tag (issue #147) ###
+  tests-tag-clobber:
+    name: "Test local GitHub Action [tag clobber]"
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+    timeout-minutes: 3 # Increase this timeout value as needed
+    steps:
+      # First run populates the local tags in the target path
+      - name: "Run action: prepare [test-tags-semver]"
+        uses: $/
+        with:
+          repository: 'lfreleng-actions/test-tags-semantic'
+          path: 'test-tags-clobber'
+
+      # Replace annotated tag v0.1.1 with a lightweight tag at its commit,
+      # as actions/checkout before v6.0.2 did on a tag push. A plain
+      # 'git fetch --tags' then fails with 'would clobber existing tag'.
+      - name: "Create conflicting local tag"
+        shell: bash
+        working-directory: 'test-tags-clobber'
+        run: |
+          # Create conflicting local tag
+          git tag -f v0.1.1 'v0.1.1^{commit}'
+          dry_run=$(git fetch --tags --dry-run 2>&1 || true)
+          echo "$dry_run"
+          if ! echo "$dry_run" | grep -q 'would clobber existing tag'; then
+            echo 'Error: failed to create a conflicting local tag ❌'
+            exit 1
+          fi
+
+      # Second run reuses the path, so the conflicting tag is present
+      - name: "Run action: ${{ github.repository }} [tag clobber]"
+        id: clobber
+        uses: $/
+        with:
+          repository: 'lfreleng-actions/test-tags-semantic'
+          path: 'test-tags-clobber'
+
+      - name: "Validate action: ${{ github.repository }} [tag clobber]"
+        shell: bash
+        working-directory: 'test-tags-clobber'
+        run: |
+          # Validate Action Output
+          errors='false'
+          if [ "${STEPS_CLOBBER_OUTPUTS_TAG_COUNT}" != '2' ]; then
+            echo 'Error: did not get expected semver count ❌'
+            echo "Returned: ${STEPS_CLOBBER_OUTPUTS_TAG_COUNT}"
+            echo 'Expected: 2'
+            errors='true'
+          fi
+          if [ "${STEPS_CLOBBER_OUTPUTS_TAG}" != 'v0.1.1' ]; then
+            echo 'Error: did not get expected semantic tag result ❌'
+            echo "Returned: ${STEPS_CLOBBER_OUTPUTS_TAG}"
+            echo 'Expected: v0.1.1'
+            errors='true'
+          fi
+          local_ref=$(git rev-parse refs/tags/v0.1.1)
+          remote_ref=$(git ls-remote origin refs/tags/v0.1.1 | cut -f1)
+          if [ "$local_ref" != "$remote_ref" ]; then
+            echo 'Error: local tag v0.1.1 does not match the remote ❌'
+            echo "Local: $local_ref"
+            echo "Remote: $remote_ref"
+            errors='true'
+          fi
+
+          if [ "$errors" == 'true' ]; then
+            echo 'Action validation failed ❌'
+            exit 1
+          else
+            echo 'Action validation passed ✅'
+          fi
+        env:
+          STEPS_CLOBBER_OUTPUTS_TAG: ${{ steps.clobber.outputs.tag }}
+          # yamllint disable-line rule:line-length
+          STEPS_CLOBBER_OUTPUTS_TAG_COUNT: ${{ steps.clobber.outputs.tag_count }}
