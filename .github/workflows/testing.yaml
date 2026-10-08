@@ -53,30 +53,79 @@ jobs:
         shell: bash
         run: |
           # Validate Action Output
-          if [ "${STEPS_SEMVER_OUTPUTS_TAG}" \
-            != 'v0.1.1' ]; then
+          errors='false'
+          if [ "${STEPS_SEMVER_OUTPUTS_TAG}" != 'v0.1.1' ]; then
             echo 'Error: did not get expected semantic tag result ❌'
             echo "Returned: ${STEPS_SEMVER_OUTPUTS_TAG}"
             echo 'Expected: v0.1.1'
             errors='true'
-          elif [ "${STEPS_SEMVER_OUTPUTS_TAG_COUNT}" \
-            != '2' ]; then
+          fi
+          if [ "${STEPS_SEMVER_OUTPUTS_TAG_COUNT}" != '2' ]; then
             echo 'Error: did not get expected semver count ❌'
             echo "Returned: ${STEPS_SEMVER_OUTPUTS_TAG_COUNT}"
             echo 'Expected: 2'
             errors='true'
-          elif [ "${STEPS_CALVER_OUTPUTS_TAG}" \
-            != '2025.02.01' ]; then
+          fi
+          if [ "${STEPS_CALVER_OUTPUTS_TAG}" != '2025.02.01' ]; then
             echo 'Error: did not get expected calver tag result ❌'
             echo "Returned: ${STEPS_CALVER_OUTPUTS_TAG}"
             echo 'Expected: 2025.02.01'
             errors='true'
-          elif [ "${STEPS_CALVER_OUTPUTS_TAG_COUNT}" \
-            != '2' ]; then
+          fi
+          if [ "${STEPS_CALVER_OUTPUTS_TAG_COUNT}" != '2' ]; then
             echo 'Error: did not get expected calver count ❌'
             echo "Returned: ${STEPS_CALVER_OUTPUTS_TAG_COUNT}"
             echo 'Expected: 2'
             errors='true'
+          fi
+
+          # Default inputs: this repository's tags change over time, so
+          # check the outputs' consistency rather than exact values.
+          # The default 'path' is '.', so the checkout and its tags must
+          # be at the workspace root, where this step runs.
+          expected_url="${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}"
+          origin_url=$(git config --get remote.origin.url || true)
+          if [ "${origin_url%.git}" != "$expected_url" ]; then
+            echo 'Error: default inputs did not check out this repository ❌'
+            echo "Returned: ${origin_url}"
+            echo "Expected: ${expected_url}"
+            errors='true'
+          fi
+          if ! [[ "${STEPS_LOCAL_OUTPUTS_TAG_COUNT}" =~ ^[0-9]+$ ]]; then
+            echo 'Error: default inputs tag count is not an integer ❌'
+            echo "Returned: ${STEPS_LOCAL_OUTPUTS_TAG_COUNT}"
+            errors='true'
+          elif [ "${STEPS_LOCAL_OUTPUTS_TAG_COUNT}" = '0' ]; then
+            if [ -n "${STEPS_LOCAL_OUTPUTS_TAG}" ]; then
+              echo 'Error: default inputs returned a tag but no count ❌'
+              echo "Returned: ${STEPS_LOCAL_OUTPUTS_TAG}"
+              errors='true'
+            fi
+          elif [ -z "${STEPS_LOCAL_OUTPUTS_TAG}" ]; then
+            echo 'Error: default inputs counted tags but returned none ❌'
+            echo "Tag count: ${STEPS_LOCAL_OUTPUTS_TAG_COUNT}"
+            errors='true'
+          else
+            tag="${STEPS_LOCAL_OUTPUTS_TAG}"
+            if ! git rev-parse -q --verify "refs/tags/${tag}" > /dev/null
+            then
+              echo 'Error: default inputs tag not in workspace root ❌'
+              echo "Returned: ${tag}"
+              errors='true'
+            fi
+            if [ "${STEPS_LOCAL_OUTPUTS_NUMERIC_TAG}" != "${tag#[vV]}" ]
+            then
+              echo 'Error: default inputs numeric tag does not match ❌'
+              echo "Returned: ${STEPS_LOCAL_OUTPUTS_NUMERIC_TAG}"
+              echo "Expected: ${tag#[vV]}"
+              errors='true'
+            fi
+            if [ "${STEPS_LOCAL_OUTPUTS_SEMANTIC}" != 'true' ] && \
+              [ "${STEPS_LOCAL_OUTPUTS_CALVER}" != 'true' ]; then
+              echo 'Error: default inputs tag is neither semver nor calver ❌'
+              echo "Returned: ${tag}"
+              errors='true'
+            fi
           fi
 
           if [ "$errors" == 'true' ]; then
@@ -90,6 +139,13 @@ jobs:
           STEPS_SEMVER_OUTPUTS_TAG_COUNT: ${{ steps.semver.outputs.tag_count }}
           STEPS_CALVER_OUTPUTS_TAG: ${{ steps.calver.outputs.tag }}
           STEPS_CALVER_OUTPUTS_TAG_COUNT: ${{ steps.calver.outputs.tag_count }}
+          STEPS_LOCAL_OUTPUTS_TAG: ${{ steps.test-local.outputs.tag }}
+          # yamllint disable-line rule:line-length
+          STEPS_LOCAL_OUTPUTS_TAG_COUNT: ${{ steps.test-local.outputs.tag_count }}
+          # yamllint disable-line rule:line-length
+          STEPS_LOCAL_OUTPUTS_NUMERIC_TAG: ${{ steps.test-local.outputs.numeric_tag }}
+          STEPS_LOCAL_OUTPUTS_SEMANTIC: ${{ steps.test-local.outputs.semantic }}
+          STEPS_LOCAL_OUTPUTS_CALVER: ${{ steps.test-local.outputs.calver }}
 
   ### Regression test: conflicting local tag (issue #147) ###
   tests-tag-clobber:
