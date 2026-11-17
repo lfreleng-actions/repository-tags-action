@@ -174,7 +174,7 @@ runs:
       # Do not run if no tag was found
       if: steps.latest.outputs.tag != ''
       # yamllint disable-line rule:line-length
-      uses: lfreleng-actions/tag-validate-semantic-action@a927f1f6e75934e9c059f6682c2141609886025e # v0.2.4
+      uses: lfreleng-actions/tag-validate-semantic-action@3028568142ad20649481bc395140b5864f8a970b # v0.2.5
       with:
         string: "${{ steps.latest.outputs.tag }}"
 
